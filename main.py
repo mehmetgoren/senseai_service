@@ -100,6 +100,8 @@ def main():
     except BaseException as ex:
         logger.error(f'an error occurred on SenseAI Service main function, ex: {ex}')
 
+    logger.warning('SenseAI Service has been ended')
+
 
 if __name__ == '__main__':
     main()
