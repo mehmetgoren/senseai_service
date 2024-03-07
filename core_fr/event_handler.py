@@ -3,17 +3,17 @@ import json
 
 from common.event_bus.event_bus import EventBus
 from common.event_bus.event_handler import EventHandler
-from common.utilities import logger, config
+from common.utilities import logger
 from core_fr.face_recognizer import FaceRecognizer
 
 from utils.utilities import EventChannels, start_thread
 
 
 class FrReadServiceEventHandler(EventHandler):
-    def __init__(self):
-        self.prob_threshold: float = config.deep_stack.fr_threshold
+    def __init__(self, fr_threshold: float):
+        self.prob_threshold = fr_threshold
         self.encoding = 'utf-8'
-        self.fr = FaceRecognizer()
+        self.fr = FaceRecognizer(fr_threshold)
         self.publisher = EventBus(EventChannels.snapshot_out)
 
     def handle(self, dic: dict):

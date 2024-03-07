@@ -1,16 +1,17 @@
 from typing import List
 import requests
 
-from common.utilities import config, logger
+from common.utilities import logger
 from utils.detections import DetectionBox, DetectionResult
 from core_od.models.response import ObjectDetectionResponse
 from utils.json_serializer import deserialize_json
 from utils.utilities import get_module_url
 
 
+# noinspection DuplicatedCode
 class ObjectDetector:
-    def __init__(self):
-        self.min_confidence = config.sense_ai.od_threshold
+    def __init__(self, od_threshold: float):
+        self.min_confidence = od_threshold
         self.url = get_module_url('v1/vision/detection')
 
     def detect(self, image_data: bytes, detected_by: str) -> List[DetectionResult]:

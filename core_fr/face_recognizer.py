@@ -1,7 +1,7 @@
 import requests
 from typing import List
 
-from common.utilities import logger, config
+from common.utilities import logger
 from core_fr.models.face_recognition_response import FaceRecognitionResponse
 from utils.json_serializer import deserialize_json
 from utils.utilities import get_module_url
@@ -18,8 +18,8 @@ class DetectedFace:
 
 
 class FaceRecognizer:
-    def __init__(self):
-        self.min_confidence = config.sense_ai.fr_threshold
+    def __init__(self, fr_threshold: float):
+        self.min_confidence = fr_threshold
         self.url = get_module_url('v1/vision/face/recognize')
 
     def predict(self, image_data: bytes) -> List[DetectedFace]:

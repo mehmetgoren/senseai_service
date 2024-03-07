@@ -2,22 +2,24 @@ import sys
 import time
 from multiprocessing import Process
 
+from common.data.ai_module_repository import AiModuleRepository
 from core_alpr.event_handler import AlprReadServiceEventHandler
 from core_alpr.plate_recognizer import PlateRecognizer
 from docker_manager import DockerManager
 
 from common.event_bus.event_bus import EventBus
-from common.utilities import config, logger
+from common.utilities import config, logger, crate_redis_connection, RedisDb
 from core_fr.event_handler import FrReadServiceEventHandler
 from core_fr.train_event_handler import TrainEventHandler
 from core_od.event_handler import OdReadServiceEventHandler
 from core_od.object_detector import ObjectDetector
+from utils.custom_models import SenseAiConfig
 from utils.utilities import EventChannels, register_senseai_service, start_thread
 
 
-def setup_alpr():
+def setup_alpr(alpr_threshold: float):
     logger.info('SenseAI ALPR service will start soon')
-    alpr_recognizer = PlateRecognizer()
+    alpr_recognizer = PlateRecognizer(alpr_threshold)
     event_bus = EventBus(EventChannels.read_service)  # No Motion Detection
     handler = AlprReadServiceEventHandler(alpr_recognizer)
     logger.info('SenseAI ALPR service will start soon')
@@ -25,7 +27,7 @@ def setup_alpr():
     sys.exit()
 
 
-def setup_fr():
+def setup_fr(fr_threshold: float):
     def train_event_handler():
         logger.info('SenseAI face training event handler will start soon')
         eb = EventBus(EventChannels.fr_train_request)
@@ -34,7 +36,7 @@ def setup_fr():
 
     start_thread(fn=train_event_handler, args=[])
 
-    handler = FrReadServiceEventHandler()
+    handler = FrReadServiceEventHandler(fr_threshold)
 
     logger.info('SenseAI face recognition service will start soon')
     event_bus = EventBus(EventChannels.read_service)  # No Motion Detection
@@ -42,20 +44,49 @@ def setup_fr():
     sys.exit()
 
 
-def setup_od():
-    detector = ObjectDetector()
+def setup_od(od_threshold: float):
+    detector = ObjectDetector(od_threshold)
     event_bus = EventBus(EventChannels.snapshot_in)
     handler = OdReadServiceEventHandler(detector)
     logger.info('SenseAI service will start soon')
     event_bus.subscribe_async(handler)
 
 
+def check_sense_ai_default_modules() -> SenseAiConfig:
+    ret = SenseAiConfig()
+    redis_conn = None
+    try:
+        redis_conn = crate_redis_connection(RedisDb.MAIN)
+        ai_module_rep = AiModuleRepository(crate_redis_connection(RedisDb.MAIN))
+        ai_module_rep.check_sense_ai_default_modules()
+
+        fr = ai_module_rep.get('fr')
+        ret.fr_enabled = fr.enabled
+        ret.fr_threshold = fr.threshold
+
+        fd = ai_module_rep.get('fd')
+        ret.fd_enabled = fd.enabled
+        ret.fd_threshold = fd.threshold
+
+        od = ai_module_rep.get('od')
+        ret.od_enabled = od.enabled
+        ret.od_threshold = od.threshold
+
+        alpr = ai_module_rep.get('alpr')
+        ret.alpr_enabled = alpr.enabled
+        ret.alpr_threshold = alpr.threshold
+    finally:
+        if redis_conn is not None:
+            redis_conn.close()
+    return ret
+
+
 def main():
-    c = config.sense_ai
-    if len(c.host) == 0:
+    if len(config.sense_ai.host) == 0:
         logger.error('Config.Senseai.ServerUrl is empty, the senseai service is now exiting')
         return
 
+    c = check_sense_ai_default_modules()
     try:
         dckr_mngr = DockerManager()
 
@@ -84,7 +115,7 @@ def main():
 
         if c.od_enabled:
             logger.info('SenseAI Object Detection is enabled')
-            setup_od()
+            setup_od(c.od_threshold)
         else:
             logger.warning('SenseAI Object Detection is not enabled')
 
