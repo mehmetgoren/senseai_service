@@ -3,7 +3,7 @@ from typing import List, Any
 import docker
 from docker.types import Mount
 
-from common.config import SenseAIType
+from common.config import SenseAiImage
 from common.utilities import config, logger
 from utils.dir import get_root_path_for_senseai, create_dir_if_not_exists
 
@@ -16,16 +16,16 @@ class DockerManager:
         self.sense_ai_config = config.sense_ai
 
     def __get_image_name(self) -> str:
-        docker_type = self.sense_ai_config.type
-        if docker_type == SenseAIType.CPU:
+        docker_type = self.sense_ai_config.image
+        if docker_type == SenseAiImage.CPU:
             return 'codeproject/ai-server'
-        elif docker_type == SenseAIType.GPU_CUDA_11_7:
+        elif docker_type == SenseAiImage.GPU_CUDA_11_7:
             return 'codeproject/ai-server:cuda11_7'
-        elif docker_type == SenseAIType.GPU_CUDA_12_2:
+        elif docker_type == SenseAiImage.GPU_CUDA_12_2:
             return 'codeproject/ai-server:cuda12_2'
-        elif docker_type == SenseAIType.ARM64:
+        elif docker_type == SenseAiImage.ARM64:
             return 'codeproject/ai-server:arm64'
-        elif docker_type == SenseAIType.RPI64:
+        elif docker_type == SenseAiImage.RPI64:
             return 'codeproject/ai-server:rpi64'
         else:
             return 'codeproject/ai-server'
@@ -45,8 +45,8 @@ class DockerManager:
                 # break
 
         environments = dict()
-        docker_type = self.sense_ai_config.type
-        is_cuda = docker_type == SenseAIType.GPU_CUDA_11_7 or docker_type == SenseAIType.GPU_CUDA_12_2
+        docker_image = self.sense_ai_config.image
+        is_cuda = docker_image == SenseAiImage.GPU_CUDA_11_7 or docker_image == SenseAiImage.GPU_CUDA_12_2
         device_requests = []
         if is_cuda:
             device_requests.append(docker.types.DeviceRequest(count=-1, capabilities=[['gpu']]))
@@ -62,9 +62,12 @@ class DockerManager:
         create_dir_if_not_exists(modules_dir_path)
         mounts.append(Mount(source=f'{modules_dir_path}', target='/app/modules', type='bind'))
 
-        container = self.client.containers.run(image=self.__get_image_name(), detach=True, restart_policy={'Name': 'unless-stopped'},
+        image_name = self.__get_image_name()
+        logger.warning(f'creating a new SenseAI server container with image: {image_name}, please be patient, it may take a while...')
+        container = self.client.containers.run(image=image_name, detach=True, restart_policy={'Name': 'unless-stopped'},
                                                name=self.container_name, ports={'32168': str(self.sense_ai_config.port)},
                                                environment=environments, mounts=mounts, device_requests=device_requests)
+        logger.warning(f'a new SenseAI server container({image_name}) has been created successfully.')
         # environment=environments, mounts=mounts, device_requests=device_requests,
         # runtime='nvidia' if is_cuda else '')
         return container

@@ -63,7 +63,7 @@ class ArchiveActionType(IntEnum):
     MoveToNewLocation = 1
 
 
-class SenseAIType(IntEnum):
+class SenseAiImage(IntEnum):
     CPU = 0
     GPU_CUDA_11_7 = 1
     GPU_CUDA_12_2 = 2
@@ -81,7 +81,6 @@ class DeviceConfig:
 class GeneralConfig:
     def __init__(self):
         self.dir_paths: List[str] = []
-        self.heartbeat_interval: int = 30
 
 
 class DbConfig:
@@ -112,7 +111,7 @@ class AiConfig:
 
 class SenseAIConfig:
     def __init__(self):
-        self.type: SenseAIType = SenseAIType.GPU_CUDA_12_2
+        self.image: SenseAiImage = SenseAiImage.GPU_CUDA_12_2
         self.host: str = '127.0.0.1'
         self.port: int = 32168
 

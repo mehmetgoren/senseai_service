@@ -1,0 +1,7 @@
+gokalpgoren
+    amd64:
+        docker build -t gokalpgoren/senseai_service:v1.0.2-amd64 .
+        docker run -it --restart unless-stopped --name senseai_service-instance --net host -e TZ=Europe/Istanbul -v /mnt/sdc1/feniks_data_docker:/mnt/sdc1/feniks_data_docker -v /var/run/docker.sock:/var/run/docker.sock gokalpgoren/senseai_service:v1.0.2-amd64
+    raspi4:
+        docker build -t gokalpgoren/senseai_service:v1.0.2-arm64v8 -f Dockerfile.jetson .
+        docker run -it --restart unless-stopped --name senseai_service-instance --net host -e TZ=Europe/Istanbul -v /mnt/sdc1/feniks_data_docker:/mnt/sdc1/feniks_data_docker -v /var/run/docker.sock:/var/run/docker.sock gokalpgoren/senseai_service:v1.0.2-arm64v8

@@ -2,7 +2,6 @@ import os
 from enum import Enum
 from threading import Thread
 
-from common.data.heartbeat_repository import HeartbeatRepository
 from common.data.service_repository import ServiceRepository
 from common.utilities import config, crate_redis_connection, RedisDb
 from utils.dir import get_root_path_for_senseai
@@ -10,8 +9,6 @@ from utils.dir import get_root_path_for_senseai
 
 def register_senseai_service(service_name: str, instance_name: str, description: str):
     connection_main = crate_redis_connection(RedisDb.MAIN)
-    heartbeat = HeartbeatRepository(connection_main, service_name)
-    heartbeat.start()
     service_repository = ServiceRepository(connection_main)
     service_repository.add(service_name, instance_name, description)
     return connection_main
@@ -21,9 +18,8 @@ class EventChannels(str, Enum):
     read_service = 'read_service'
     snapshot_in = 'snapshot_in'
     snapshot_out = 'snapshot_out'
-    od_service = 'od_service'
-    fr_train_request = 'fr_train_request'
-    fr_train_response = 'fr_train_response'
+    face_train_request = 'face_train_request'
+    face_train_response = 'face_train_response'
     frtc = 'frtc'
 
 
@@ -39,5 +35,7 @@ def start_thread(fn, args):
 
 
 def get_train_dir_path() -> str:
-    return os.path.join(get_root_path_for_senseai(config), 'fr', 'ml', 'train')
+    x = get_root_path_for_senseai(config)
+    y = os.path.join(x, 'ai', 'face', 'train')
+    return y
 

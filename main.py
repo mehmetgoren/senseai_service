@@ -1,84 +1,58 @@
 import sys
 import time
 from multiprocessing import Process
+from typing import List
 
+from common.data.ai_module_model import AiModuleModel
 from common.data.ai_module_repository import AiModuleRepository
-from core_alpr.event_handler import AlprReadServiceEventHandler
-from core_alpr.plate_recognizer import PlateRecognizer
+from core.detector import Detector
+from core.read_service_event_handler import ReadServiceEventHandler
 from docker_manager import DockerManager
 
 from common.event_bus.event_bus import EventBus
 from common.utilities import config, logger, crate_redis_connection, RedisDb
-from core_fr.event_handler import FrReadServiceEventHandler
 from core_fr.train_event_handler import TrainEventHandler
-from core_od.event_handler import OdReadServiceEventHandler
-from core_od.object_detector import ObjectDetector
-from utils.custom_models import SenseAiConfig
-from utils.utilities import EventChannels, register_senseai_service, start_thread
+from utils.utilities import EventChannels, register_senseai_service
 
 
-def setup_alpr(alpr_threshold: float):
-    logger.info('SenseAI ALPR service will start soon')
-    alpr_recognizer = PlateRecognizer(alpr_threshold)
-    event_bus = EventBus(EventChannels.read_service)  # No Motion Detection
-    handler = AlprReadServiceEventHandler(alpr_recognizer)
-    logger.info('SenseAI ALPR service will start soon')
-    event_bus.subscribe_async(handler)
-    sys.exit()
+def setup_fr_train():
+    logger.info('SenseAI face training event handler will start soon')
+    eb = EventBus(EventChannels.face_train_request)
+    th = TrainEventHandler()
+    eb.subscribe_async(th)
 
 
-def setup_fr(fr_threshold: float):
-    def train_event_handler():
-        logger.info('SenseAI face training event handler will start soon')
-        eb = EventBus(EventChannels.fr_train_request)
-        th = TrainEventHandler()
-        eb.subscribe_async(th)
-
-    start_thread(fn=train_event_handler, args=[])
-
-    handler = FrReadServiceEventHandler(fr_threshold)
-
-    logger.info('SenseAI face recognition service will start soon')
-    event_bus = EventBus(EventChannels.read_service)  # No Motion Detection
-    event_bus.subscribe_async(handler)
-    sys.exit()
-
-
-def setup_od(od_threshold: float):
-    detector = ObjectDetector(od_threshold)
-    event_bus = EventBus(EventChannels.snapshot_in)
-    handler = OdReadServiceEventHandler(detector)
-    logger.info('SenseAI service will start soon')
-    event_bus.subscribe_async(handler)
-
-
-def check_sense_ai_default_modules() -> SenseAiConfig:
-    ret = SenseAiConfig()
+def check_sense_ai_default_modules() -> List[AiModuleModel]:
     redis_conn = None
     try:
         redis_conn = crate_redis_connection(RedisDb.MAIN)
         ai_module_rep = AiModuleRepository(crate_redis_connection(RedisDb.MAIN))
-        ai_module_rep.check_sense_ai_default_modules()
-
-        fr = ai_module_rep.get('fr')
-        ret.fr_enabled = fr.enabled
-        ret.fr_threshold = fr.threshold
-
-        fd = ai_module_rep.get('fd')
-        ret.fd_enabled = fd.enabled
-        ret.fd_threshold = fd.threshold
-
-        od = ai_module_rep.get('od')
-        ret.od_enabled = od.enabled
-        ret.od_threshold = od.threshold
-
-        alpr = ai_module_rep.get('alpr')
-        ret.alpr_enabled = alpr.enabled
-        ret.alpr_threshold = alpr.threshold
+        ret = ai_module_rep.check_sense_ai_default_modules()
     finally:
         if redis_conn is not None:
             redis_conn.close()
     return ret
+
+
+def setup(module: AiModuleModel):
+    # todo: change snapshot_service to work with new dictionary key. It must behave like a proxy
+    channel = EventChannels.snapshot_in if module.motion_detection_enabled else EventChannels.read_service
+    logger.info(f'{module.name} event handler channel: {channel}')
+    event_bus = EventBus(channel)
+
+    detector = Detector(module)
+    handler = ReadServiceEventHandler(detector)
+
+    logger.info(f'SenseAI service will start soon for {module.name}')
+
+    while True:
+        try:
+            event_bus.subscribe_async(handler)
+            break
+        except BaseException as ex:
+            logger.error(f'an error occurred while subscribing to event bus, ex: {ex}')
+            time.sleep(3)
+    sys.exit()
 
 
 def main():
@@ -86,7 +60,9 @@ def main():
         logger.error('Config.Senseai.ServerUrl is empty, the senseai service is now exiting')
         return
 
-    c = check_sense_ai_default_modules()
+    modules: List[AiModuleModel] = check_sense_ai_default_modules()
+    procs = []
+    # dckr_mngr = None
     try:
         dckr_mngr = DockerManager()
 
@@ -95,41 +71,30 @@ def main():
 
         register_senseai_service('senseai_service', 'senseai_service-instance', 'The Code Project SenseAi Object Detection and Facial Recognition Service®')
 
-        proc_fr = None
-        if c.fr_enabled:
-            logger.info('SenseAI Facial Recognition is enabled')
-            proc_fr = Process(target=setup_fr, args=())
-            proc_fr.daemon = True
-            proc_fr.start()
-        else:
-            logger.warning('SenseAI Facial Recognition is not enabled')
+        for module in modules:
+            if module.enabled:
+                logger.info(f'{module.name} is enabled')
+                proc = Process(target=setup, args=(module,))
+                procs.append(proc)
+                proc.daemon = True
+                proc.start()
+            else:
+                logger.warning(f'{module.name} is not enabled')
 
-        proc_alpr = None
-        if c.alpr_enabled:
-            logger.info('SenseAI ALPR is enabled')
-            proc_alpr = Process(target=setup_alpr, args=())
-            proc_alpr.daemon = True
-            proc_alpr.start()
-        else:
-            logger.warning('SenseAI ALPR is not enabled')
-
-        if c.od_enabled:
-            logger.info('SenseAI Object Detection is enabled')
-            setup_od(c.od_threshold)
-        else:
-            logger.warning('SenseAI Object Detection is not enabled')
-
-        if proc_fr is not None:
-            proc_fr.join()
-            proc_fr.terminate()
-
-        if proc_alpr is not None:
-            proc_alpr.join()
-            proc_alpr.terminate()
+        setup_fr_train()
 
         logger.warning('SenseAI Service has been ended')
     except BaseException as ex:
         logger.error(f'an error occurred on SenseAI Service main function, ex: {ex}')
+    finally:
+        for proc in procs:
+            try:
+                # proc.join()
+                proc.terminate()
+            except BaseException as ex:
+                logger.error(f'an error occurred while terminating a process, ex: {ex}')
+        # if dckr_mngr is not None:
+        #     dckr_mngr.stop()
 
     logger.warning('SenseAI Service has been ended')
 

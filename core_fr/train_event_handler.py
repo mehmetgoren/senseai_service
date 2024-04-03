@@ -29,7 +29,7 @@ def _train():
         internal_eb = EventBus(EventChannels.frtc)
         internal_eb.publish_async(json.dumps({'reloaded': result}))
 
-    event_bus = EventBus(EventChannels.fr_train_response)
+    event_bus = EventBus(EventChannels.face_train_response)
     event = json.dumps({'result': result})
     event_bus.publish(event)
     logger.info('training complete and the event was published')
