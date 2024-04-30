@@ -22,7 +22,7 @@ class DockerManager:
         elif docker_type == SenseAiImage.GPU_CUDA_11_7:
             return 'codeproject/ai-server:cuda11_7'
         elif docker_type == SenseAiImage.GPU_CUDA_12_2:
-            return 'codeproject/ai-server:cuda12_2'
+            return 'codeproject/ai-server:cuda12_2-2.6.2'
         elif docker_type == SenseAiImage.ARM64:
             return 'codeproject/ai-server:arm64'
         elif docker_type == SenseAiImage.RPI64:

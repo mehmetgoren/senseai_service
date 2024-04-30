@@ -36,6 +36,7 @@ class AiModuleRepository(BaseRepository):
             ('fd', 'Face Detection', False, 'v1/vision/face', 0.4, '', False, True, True),
             ('fr', 'Face Recognition', False, 'v1/vision/face/recognize', 0.4, 'userid', False, True, True),
             ('alpr', 'Automatic License Plate Recognition', False, 'v1/vision/alpr', 0.4, 'label', False, True, True),
+            ('ocr', 'Optical Character Recognition', False, 'v1/vision/ocr', 0.4, 'label', False, True, True),
         ]
         for module in default_modules:
             if not any(x.name == module[0] for x in all_modules):
