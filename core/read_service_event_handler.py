@@ -1,4 +1,4 @@
-import base64
+import pybase64
 import json
 from typing import List
 
@@ -33,7 +33,7 @@ class ReadServiceEventHandler(EventHandler):
             base64_image = dic['base64_image']
             ai_clip_enabled = dic['ai_clip_enabled']
 
-            base64_decoded: bytes = base64.b64decode(base64_image)
+            base64_decoded: bytes = pybase64.b64decode(base64_image)
 
             results: List[DetectionResult] = self.detector.detect(base64_decoded, source_id)
             if len(results) > 0:

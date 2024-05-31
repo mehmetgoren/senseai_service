@@ -13,6 +13,7 @@ RUN pip3 install docker
 RUN pip3 install psutil
 RUN pip3 install redis
 RUN pip3 install requests
+RUN pip3 install pybase64
 
 COPY . .
 
